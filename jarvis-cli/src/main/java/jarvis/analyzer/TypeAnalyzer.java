@@ -11,7 +11,7 @@ import java.util.Map;
 public class TypeAnalyzer {
 
     // Ссылка на общую мапу схем.
-    // Она нужна, чтобы не парсить один и тот же класс дважды (и избежать бесконечной рекурсии, если класс ссылается сам на себя)
+    // Она нужна, чтобы не парсить один и тот же класс дважды (избежать бесконечной рекурсии, если класс ссылается сам на себя)
     private final Map<String, Schema> schemaRegistry;
 
     public TypeAnalyzer(Map<String, Schema> schemaRegistry) {
@@ -27,12 +27,12 @@ public class TypeAnalyzer {
         }
 
         Schema schema = new Schema(className);
-        // СРАЗУ кладем схему в реестр ДО обхода полей.
-        // Это спасет от StackOverflowError, если класс A имеет поле типа A.
+        // Сразу кладу схему в реестр до обхода полей.
+        // Это спасет от стаковерфлоу, если класс A имеет поле типа A.
         schemaRegistry.put(className, schema);
 
         for (Field field : clazz.getDeclaredFields()) {
-            // Пропускаем статические поля (нам не нужны константы или serialVersionUID в JSON)
+            // Пропускаю статические поля (нам не нужны константы или serialVersionUID в JSON)
             if (Modifier.isStatic(field.getModifiers())) {
                 continue;
             }
@@ -41,18 +41,40 @@ public class TypeAnalyzer {
             String fieldName = field.getName();
 
             if (isSimpleType(fieldType)) {
-                // Простое поле (String, int, Long)
-                schema.addField(new FieldInfo(fieldName, fieldType.getSimpleName()));
+                // Простое поле (String -> "string", BigDecimal -> "number")
+                schema.addField(new FieldInfo(fieldName, getSchemaTypeName(fieldType)));
             } else {
-                // СЛОЖНЫЙ ОБЪЕКТ - РЕКУРСИЯ!
+                // Рекурсия
                 // 1. Анализируем вложенный класс и добавляем его в реестр
                 analyze(fieldType);
-                // 2. Создаем поле-ссылку в текущей схеме
+                // 2. Создал поле-ссылку в текущей схеме
                 schema.addField(new FieldInfo(fieldName, "object", fieldType.getSimpleName()));
             }
         }
 
         return schema;
+    }
+
+    private String getSchemaTypeName(Class<?> type) {
+        if (type.equals(String.class) || type.equals(java.util.UUID.class) || type.equals(Character.class) || type.equals(char.class)) {
+            return "string";
+        }
+        if (Number.class.isAssignableFrom(type) || (type.isPrimitive() && type != boolean.class)) {
+            return "number";
+        }
+        if (type.equals(Boolean.class) || type == boolean.class) {
+            return "boolean";
+        }
+        if (type.getName().startsWith("java.time.") || type.equals(java.util.Date.class)) {
+            return "date";
+        }
+        if (Collection.class.isAssignableFrom(type)) {
+            return "array";
+        }
+        if (Map.class.isAssignableFrom(type)) {
+            return "map";
+        }
+        return type.getSimpleName();
     }
 
     // Вспомогательный метод для определения, нужно ли лезть внутрь класса
@@ -64,7 +86,15 @@ public class TypeAnalyzer {
                 type.equals(Double.class) ||
                 type.equals(Float.class) ||
                 type.equals(Boolean.class) ||
-                // Упрощение: пока считаем коллекции "простыми" типами, чтобы не усложнять парсинг дженериков
-                Collection.class.isAssignableFrom(type);
+                type.equals(Short.class) ||
+                type.equals(Byte.class) ||
+                type.equals(Character.class) ||
+                type.equals(java.math.BigDecimal.class) ||
+                type.equals(java.math.BigInteger.class) ||
+                type.equals(java.util.UUID.class) ||
+                type.equals(java.util.Date.class) ||
+                type.getName().startsWith("java.time.") ||
+                Collection.class.isAssignableFrom(type) ||
+                Map.class.isAssignableFrom(type);
     }
 }
