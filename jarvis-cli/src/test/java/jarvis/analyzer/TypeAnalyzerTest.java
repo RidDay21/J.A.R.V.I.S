@@ -12,9 +12,10 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Тесты для {@link TypeAnalyzer}.
- * Проверяют, как парсер разбирает Java-классы в объекты Schema.
+ * Спецификация для {@link TypeAnalyzer}.
+ * Описывает правила трансформации Java-классов в JSON-схемы для J.A.R.V.I.S.
  */
+@DisplayName("Спецификация анализа типов (TypeAnalyzer)")
 class TypeAnalyzerTest {
 
     private TypeAnalyzer typeAnalyzer;
@@ -26,9 +27,11 @@ class TypeAnalyzerTest {
         typeAnalyzer = new TypeAnalyzer(registry);
     }
 
+    // --- Тестовые DTO ---
     static class SimpleDto {
         private String name;
         private int age;
+        private boolean active;
         public static final String SECRET = "42";
     }
 
@@ -40,48 +43,65 @@ class TypeAnalyzerTest {
         private RecursiveDto parent;
     }
 
-    /**
-     * Проверка базовых типов и игнорирования статических полей.
-     */
     @Test
-    @DisplayName("Должен распознавать String/int и игнорировать static")
-    void shouldParseSimpleTypes() {
+    @DisplayName("Должен конвертировать примитивы и базовые типы в JSON-совместимые названия")
+    void shouldMapBasicTypesToWebStandard() {
         Schema schema = typeAnalyzer.analyze(SimpleDto.class);
 
-        assertThat(schema.fields).hasSize(2);
-        assertThat(schema.fields).anyMatch(f -> f.name.equals("name") && f.type.equals("String"));
-        assertThat(schema.fields).anyMatch(f -> f.name.equals("age") && f.type.equals("int"));
-        // Проверяем, что статическое поле SECRET не попало в список
-        assertThat(schema.fields).noneMatch(f -> f.name.equals("SECRET"));
+        // Проверяем String -> string
+        assertThat(schema.fields)
+                .anyMatch(f -> f.name.equals("name") && f.type.equals("string"));
+
+        // Проверяем int -> number
+        assertThat(schema.fields)
+                .anyMatch(f -> f.name.equals("age") && f.type.equals("number"));
+
+        // Проверяем boolean -> boolean
+        assertThat(schema.fields)
+                .anyMatch(f -> f.name.equals("active") && f.type.equals("boolean"));
     }
 
-    /**
-     * Проверка вложенных объектов (рекурсии).
-     */
     @Test
-    @DisplayName("Должен помечать вложенные объекты как type='object' и заполнять ref")
-    void shouldParseNestedObjects() {
+    @DisplayName("Должен игнорировать статические поля (константы)")
+    void shouldIgnoreStaticFields() {
+        Schema schema = typeAnalyzer.analyze(SimpleDto.class);
+
+        // Поле SECRET не должно попасть в схему
+        assertThat(schema.fields)
+                .noneMatch(f -> f.name.equals("SECRET"));
+
+        // Всего должно быть 3 поля (name, age, active)
+        assertThat(schema.fields).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("Должен корректно определять вложенные объекты и регистрировать их")
+    void shouldHandleNestedObjectsWithRegistry() {
         Schema schema = typeAnalyzer.analyze(NestedDto.class);
 
-        FieldInfo nestedField = schema.fields.get(0);
-        assertThat(nestedField.name).isEqualTo("data");
-        assertThat(nestedField.type).isEqualTo("object");
-        assertThat(nestedField.ref).isEqualTo("SimpleDto");
+        // Проверяем поле 'data'
+        assertThat(schema.fields).hasSize(1);
+        FieldInfo field = schema.fields.get(0);
 
-        // Проверяем, что вложенный класс попал в общий реестр
+        assertThat(field.name).isEqualTo("data");
+        assertThat(field.type).isEqualTo("object");
+        assertThat(field.ref).isEqualTo("SimpleDto");
+
+        // Проверяем, что вложенный класс тоже проанализирован и лежит в реестре
         assertThat(registry).containsKey("SimpleDto");
+        assertThat(registry.get("SimpleDto").fields).isNotEmpty();
     }
 
-    /**
-     * Проверка циклической зависимости (Node -> Node).
-     */
     @Test
-    @DisplayName("Должен обрабатывать циклы в DTO без StackOverflow")
-    void shouldHandleRecursion() {
+    @DisplayName("Должен предотвращать бесконечную рекурсию при циклической зависимости")
+    void shouldPreventStackOverflowOnCycles() {
         Schema schema = typeAnalyzer.analyze(RecursiveDto.class);
 
         assertThat(schema.type).isEqualTo("RecursiveDto");
+        assertThat(schema.fields).hasSize(1);
         assertThat(schema.fields.get(0).ref).isEqualTo("RecursiveDto");
-        assertThat(registry).hasSize(1);
+
+        // В реестре должен быть только один экземпляр схемы
+        assertThat(registry).containsKey("RecursiveDto");
     }
 }
