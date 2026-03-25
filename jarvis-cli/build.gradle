@@ -1,0 +1,65 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+    id 'application'
+}
+
+group = 'jarvis'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Основной инструмент для сканирования JAR файлов
+    implementation 'io.github.classgraph:classgraph:4.8.165'
+
+    // Для сериализации модели в JSON
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    implementation 'org.springframework:spring-web:6.1.4'
+
+    // Для Тестирование йоу
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.5.0'
+    testImplementation 'org.assertj:assertj-core:3.24.2'
+}
+
+application {
+    mainClass = 'jarvis.Main'
+}
+
+test {
+    useJUnitPlatform()
+
+    testLogging {
+        // Какие события выводить: запуск, пропуск, успешно, провал
+        events "passed", "skipped", "failed"
+
+        showExceptions true
+
+        exceptionFormat "short"
+
+        showStandardStreams = true
+    }
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'jarvis.Main'
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+jacocoTestReport {
+    reports {
+        xml.required = false
+        csv.required = false
+        html.outputLocation = layout.buildDirectory.dir('reports/jacoco')
+    }
+}
+
+test.finalizedBy jacocoTestReport
