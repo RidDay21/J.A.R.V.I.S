@@ -35,9 +35,9 @@ class ControllerParserTest {
 
     @BeforeEach
     void setUp() {
-        mockAnalyzer = Mockito.mock(TypeAnalyzer.class);
-        when(mockAnalyzer.analyze(any())).thenReturn(new Schema("String"));
-        parser = new ControllerParser(mockAnalyzer);
+        // Вместо мока используем реальный TypeAnalyzer, так как он простой и не требует сложной настройки
+        TypeAnalyzer analyzer = new TypeAnalyzer(new java.util.HashMap<>());
+        parser = new ControllerParser(analyzer);
     }
 
     /**

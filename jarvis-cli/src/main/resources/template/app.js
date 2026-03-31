@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const response = await fetch('api-data.json');
         const apiData = await response.json();
 
-        document.getElementById('api-title').textContent = apiData.apiName || 'API Docs';
+        document.getElementById('api-title').textContent = apiData.title || 'API Docs';
         document.getElementById('api-version').textContent = apiData.version || '';
         if (apiData.baseUrl) {
             currentBaseUrl = apiData.baseUrl;
