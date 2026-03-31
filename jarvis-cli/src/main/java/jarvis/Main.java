@@ -20,7 +20,7 @@ public class Main {
         System.out.println("=== JARVIS API GENERATOR ===");
 
         // 1. АНАЛИЗ
-        ApiMetadata apiMetadata = new ApiMetadata("My Demo Service", "1.0.0");
+        ApiMetadata apiMetadata = new ApiMetadata("API Documentation", "1.0.0");
         TypeAnalyzer typeAnalyzer = new TypeAnalyzer(apiMetadata.schemas);
         JarScanner scanner = new JarScanner(typeAnalyzer);
 

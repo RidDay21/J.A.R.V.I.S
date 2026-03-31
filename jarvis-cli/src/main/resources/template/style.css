@@ -23,11 +23,21 @@ header {
     margin-bottom: 20px;
 }
 
-.server-config input {
-    padding: 8px;
-    border: 1px solid #ccc;
+.server-config {
+    font-size: 14px;
+    background: #f0f0f0;
+    padding: 8px 15px;
     border-radius: 4px;
-    width: 250px;
+    border: 1px solid #ddd;
+}
+
+.server-config span {
+    color: #666;
+}
+
+.server-config strong {
+    color: #3b4151;
+    font-family: monospace;
 }
 
 /* Стили для эндпоинтов */

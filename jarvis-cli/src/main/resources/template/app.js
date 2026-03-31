@@ -1,3 +1,5 @@
+let currentBaseUrl = "http://localhost:8080";
+
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         // Загружаем сгенерированный JSON
@@ -6,6 +8,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         document.getElementById('api-title').textContent = apiData.apiName || 'API Docs';
         document.getElementById('api-version').textContent = apiData.version || '';
+        if (apiData.baseUrl) {
+            currentBaseUrl = apiData.baseUrl;
+            const displayEl = document.getElementById('display-base-url');
+            if (displayEl) displayEl.textContent = currentBaseUrl;
+        }
 
         renderEndpoints(apiData.endpoints, apiData.schemas);
     } catch (e) {
@@ -93,7 +100,7 @@ function buildSampleJson(schemaName, schemas, depth = 0) {
 
 // Выполнение реального запроса к API
 async function executeRequest(index, method, path) {
-    const baseUrl = document.getElementById('base-url').value.replace(/\/$/, "");
+    const baseUrl = currentBaseUrl.replace(/\/$/, "");
     let finalUrl = baseUrl + path;
 
     const container = document.getElementById('endpoints-container').children[index];
