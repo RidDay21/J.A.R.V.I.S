@@ -19,6 +19,10 @@ public class TypeAnalyzer {
     }
 
     public Schema analyze(Class<?> clazz) {
+        if (isSimpleType(clazz)) {
+            return new Schema(getSchemaTypeName(clazz));
+        }
+
         String className = clazz.getSimpleName();
 
         // Если мы уже разобрали этот класс ранее, просто возвращаем готовую схему
