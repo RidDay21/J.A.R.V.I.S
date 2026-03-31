@@ -93,10 +93,13 @@ function renderEndpoints(endpoints, schemas) {
 }
 
 // Рекурсивно строит пример JSON объекта на основе схем DTO
-function buildSampleJson(schemaName, schemas, depth = 0) {
-    if (depth > 5) return "Рекурсия слишком глубокая";
+function buildSampleJson(schemaName, schemas, visited = []) {
+    // Если мы уже встречали этот тип в текущем пути — это цикл
+    if (visited.includes(schemaName)) {
+        return `{Recursive: ${schemaName}}`;
+    }
 
-    // Если это примитив, а не ссылка на схему — возвращаем заглушку сразу
+    // Если это примитив — возвращаем заглушку сразу
     if (schemaName === 'string') return "string";
     if (schemaName === 'number') return 0;
     if (schemaName === 'boolean') return true;
@@ -104,12 +107,15 @@ function buildSampleJson(schemaName, schemas, depth = 0) {
     const schema = schemas[schemaName];
     if (!schema) return schemaName;
 
+    // Запоминаем текущий класс в пути
+    const newVisited = [...visited, schemaName];
+
     const obj = {};
     if (schema.fields) {
         schema.fields.forEach(f => {
             if (f.ref) {
                 // Если поле ссылается на другой класс — рекурсия
-                obj[f.name] = buildSampleJson(f.ref, schemas, depth + 1);
+                obj[f.name] = buildSampleJson(f.ref, schemas, newVisited);
             } else {
                 // Подставляем осмысленные значения вместо имени типа
                 if (f.type === 'string') obj[f.name] = 'string';
