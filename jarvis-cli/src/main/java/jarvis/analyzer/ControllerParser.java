@@ -9,8 +9,6 @@ import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.List;
 
-
-
 public class ControllerParser {
 
     private final TypeAnalyzer typeAnalyzer;
@@ -27,7 +25,6 @@ public class ControllerParser {
             RequestMapping reqMapping = controllerClass.getAnnotation(RequestMapping.class);
             if (reqMapping.value().length > 0) {
                 basePath = reqMapping.value()[0];
-
             }
         }
 
@@ -36,6 +33,8 @@ public class ControllerParser {
             if (endpoint != null) {
                 // Если метод оказался REST-эндпоинтом, парсим его параметры
                 extractParameters(method, endpoint);
+                // ADD: анализируем возвращаемый тип для responseBody
+                analyzeResponseType(method, endpoint);
                 endpoints.add(endpoint);
             }
         }
@@ -76,37 +75,43 @@ public class ControllerParser {
         return path.replaceAll("//+", "/");
     }
 
-    // НОВАЯ ЛОГИКА: Парсинг параметров
+    // Парсинг параметров
     private void extractParameters(Method method, Endpoint endpoint) {
         for (Parameter param : method.getParameters()) {
 
-            // 1. Ищем @PathVariable (например, /users/{id})
             if (param.isAnnotationPresent(PathVariable.class)) {
                 PathVariable ann = param.getAnnotation(PathVariable.class);
                 String name = resolveParamName(ann.value(), ann.name(), param.getName());
                 endpoint.parameters.add(new jarvis.model.Parameter(name, "path", param.getType().getSimpleName(), ann.required()));
             }
-
-            // 2. Ищем @RequestParam (например, ?query=test)
             else if (param.isAnnotationPresent(RequestParam.class)) {
                 RequestParam ann = param.getAnnotation(RequestParam.class);
                 String name = resolveParamName(ann.value(), ann.name(), param.getName());
                 endpoint.parameters.add(new jarvis.model.Parameter(name, "query", param.getType().getSimpleName(), ann.required()));
             }
-
-            // 3. Ищем @RequestHeader (заголовки)
             else if (param.isAnnotationPresent(RequestHeader.class)) {
                 RequestHeader ann = param.getAnnotation(RequestHeader.class);
                 String name = resolveParamName(ann.value(), ann.name(), param.getName());
                 endpoint.parameters.add(new jarvis.model.Parameter(name, "header", param.getType().getSimpleName(), ann.required()));
             }
-
-            // 4. Ищем @RequestBody (JSON, который шлют в теле запроса)
             else if (param.isAnnotationPresent(RequestBody.class)) {
                 Schema bodySchema = typeAnalyzer.analyze(param.getType());
-                // Сохраняем ссылку на схему в эндпоинт
-                endpoint.requestBody = new Schema(bodySchema.type);
+                // FIX: сохраняем саму схему, а не создаём пустую
+                endpoint.requestBody = bodySchema;
             }
+        }
+    }
+
+    // ADD: анализ возвращаемого типа для responseBody
+    private void analyzeResponseType(Method method, Endpoint endpoint) {
+        Class<?> returnType = method.getReturnType();
+        if (returnType.equals(void.class)) {
+            // Для void создадим пустую схему, чтобы не было null
+            Schema voidSchema = new Schema("void");
+            voidSchema.fields = new ArrayList<>();
+            endpoint.responseBody = voidSchema;
+        } else {
+            endpoint.responseBody = typeAnalyzer.analyze(returnType);
         }
     }
 

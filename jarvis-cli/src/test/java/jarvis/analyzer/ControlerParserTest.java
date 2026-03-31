@@ -10,6 +10,8 @@ import org.mockito.Mockito;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.lang.reflect.Method;
+import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,9 +48,21 @@ class ControllerParserTest {
     @Test
     @DisplayName("Должен собирать путь и находить Path, Query параметры и Body")
     void shouldParseEndpointDetails() {
+        // Выводим все методы класса для диагностики
+        System.out.println("=== Все методы MockController ===");
+        for (Method m : MockController.class.getDeclaredMethods()) {
+            System.out.println("Метод: " + m.getName() + ", аннотации: " + Arrays.toString(m.getAnnotations()));
+        }
+        System.out.println("================================");
+
         List<Endpoint> result = parser.parse(MockController.class);
 
-        assertThat(result).hasSize(1);
+        System.out.println("Найдено эндпоинтов: " + result.size());
+        for (Endpoint e : result) {
+            System.out.println("  " + e.method + " " + e.path);
+        }
+
+        assertThat(result).hasSize(1);  // здесь падает, ожидал 1, получил 2
         Endpoint e = result.get(0);
 
         assertThat(e.path).isEqualTo("/api/v1/test/{id}");

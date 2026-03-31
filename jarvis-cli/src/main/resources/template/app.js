@@ -10,11 +10,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('api-version').textContent = apiData.version || '';
         if (apiData.baseUrl) {
             currentBaseUrl = apiData.baseUrl;
-            const displayEl = document.getElementById('display-base-url');
-            if (displayEl) displayEl.textContent = currentBaseUrl;
+            // Обновляем поле ввода, если оно есть
+            const baseUrlInput = document.getElementById('base-url');
+            if (baseUrlInput) baseUrlInput.value = currentBaseUrl;
         }
 
+
         renderEndpoints(apiData.endpoints, apiData.schemas);
+        if (apiData.schemas) {
+            renderSchemas(apiData.schemas);
+         }
     } catch (e) {
         document.getElementById('api-title').textContent = 'Ошибка загрузки api-data.json';
         console.error(e);
@@ -23,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function renderEndpoints(endpoints, schemas) {
     const container = document.getElementById('endpoints-container');
+    container.innerHTML = ''; // очищаем контейнер
 
     endpoints.forEach((ep, index) => {
         const details = document.createElement('details');
@@ -39,30 +45,40 @@ function renderEndpoints(endpoints, schemas) {
         const body = document.createElement('div');
         body.className = 'endpoint-body';
 
+        // ПАРАМЕТРЫ
         let paramsHtml = '';
         if (ep.parameters && ep.parameters.length > 0) {
             paramsHtml += `<h4>Параметры:</h4>`;
             ep.parameters.forEach(p => {
                 paramsHtml += `
                     <div class="param-row">
-                        <strong>${p.name}</strong> (${p.in}, ${p.type}) ${p.required ? '*' : ''}: 
+                        <strong>${p.name}</strong> (${p.in}, ${p.type}) ${p.required ? '*' : ''}:
                         <input type="text" data-name="${p.name}" data-in="${p.in}" placeholder="значение...">
                     </div>
                 `;
             });
         }
 
-        let bodyHtml = '';
-        if (ep.requestBody && schemas) {
-            bodyHtml += `<h4>Request Body (${ep.requestBody.type}):</h4>`;
-            // Генерируем пример JSON на основе схемы
+        // REQUEST BODY (тело запроса)
+        let requestHtml = '';
+        if (ep.requestBody && ep.requestBody.type && schemas) {
+            requestHtml += `<h4>Request Body (${ep.requestBody.type}):</h4>`;
             const sampleObj = buildSampleJson(ep.requestBody.type, schemas);
-            bodyHtml += `<textarea class="request-body" id="body-${index}">${JSON.stringify(sampleObj, null, 2)}</textarea>`;
+            requestHtml += `<textarea class="request-body" id="body-${index}">${JSON.stringify(sampleObj, null, 2)}</textarea>`;
+        }
+
+        // RESPONSE BODY (схема ответа) - ЭТОТ БЛОК БЫЛ ОТСУТСТВУЕТ
+        let responseHtml = '';
+        if (ep.responseBody && ep.responseBody.type && schemas && ep.responseBody.type !== 'void') {
+            responseHtml += `<h4>Response Body (${ep.responseBody.type}):</h4>`;
+            const sampleResponse = buildSampleJson(ep.responseBody.type, schemas);
+            responseHtml += `<pre class="response-schema-preview">${JSON.stringify(sampleResponse, null, 2)}</pre>`;
         }
 
         body.innerHTML = `
             ${paramsHtml}
-            ${bodyHtml}
+            ${requestHtml}
+            ${responseHtml}
             <button class="btn-execute" onclick="executeRequest(${index}, '${ep.method}', '${ep.path}')">Execute</button>
             <div id="response-${index}" style="display: none;">
                 <h4>Ответ сервера:</h4>
@@ -80,8 +96,13 @@ function renderEndpoints(endpoints, schemas) {
 function buildSampleJson(schemaName, schemas, depth = 0) {
     if (depth > 5) return "Рекурсия слишком глубокая";
 
+    // Если это примитив, а не ссылка на схему — возвращаем заглушку сразу
+    if (schemaName === 'string') return "string";
+    if (schemaName === 'number') return 0;
+    if (schemaName === 'boolean') return true;
+
     const schema = schemas[schemaName];
-    if (!schema) return {};
+    if (!schema) return schemaName;
 
     const obj = {};
     if (schema.fields) {
@@ -90,17 +111,58 @@ function buildSampleJson(schemaName, schemas, depth = 0) {
                 // Если поле ссылается на другой класс — рекурсия
                 obj[f.name] = buildSampleJson(f.ref, schemas, depth + 1);
             } else {
-                // Иначе подставляем имя типа как строку
-                obj[f.name] = f.type;
+                // Подставляем осмысленные значения вместо имени типа
+                if (f.type === 'string') obj[f.name] = 'string';
+                else if (f.type === 'number') obj[f.name] = 0;
+                else if (f.type === 'boolean') obj[f.name] = true;
+                else if (f.type === 'array') obj[f.name] = [];
+                else obj[f.name] = f.type;
             }
         });
     }
     return obj;
 }
 
+function renderSchemas(schemas) {
+    const container = document.getElementById('schemas-container');
+    container.innerHTML = '';
+
+    for (const [schemaName, schema] of Object.entries(schemas)) {
+        const details = document.createElement('details');
+        details.className = 'schema-item';
+
+        const summary = document.createElement('summary');
+        summary.innerHTML = `<span class="schema-name">${schemaName}</span>`;
+
+        const content = document.createElement('div');
+        content.className = 'schema-content';
+
+        // Генерируем описание полей
+        let fieldsHtml = '<div class="schema-fields">';
+        if (schema.fields) {
+            schema.fields.forEach(f => {
+                fieldsHtml += `
+                    <div class="schema-field-row">
+                        <span class="field-name">${f.name}</span>
+                        <span class="field-type">${f.ref ? f.ref : f.type}</span>
+                    </div>
+                `;
+            });
+        }
+        fieldsHtml += '</div>';
+
+        content.innerHTML = fieldsHtml;
+        details.appendChild(summary);
+        details.appendChild(content);
+        container.appendChild(details);
+    }
+}
+
 // Выполнение реального запроса к API
 async function executeRequest(index, method, path) {
-    const baseUrl = currentBaseUrl.replace(/\/$/, "");
+    // Берём URL из поля ввода, если оно есть
+    const baseUrlInput = document.getElementById('base-url');
+    const baseUrl = baseUrlInput ? baseUrlInput.value.replace(/\/$/, "") : currentBaseUrl.replace(/\/$/, "");
     let finalUrl = baseUrl + path;
 
     const container = document.getElementById('endpoints-container').children[index];

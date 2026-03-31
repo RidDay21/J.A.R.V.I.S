@@ -12,6 +12,7 @@ public class Endpoint {
 
     // Сюда будем класть структуру @RequestBody, если она есть
     public Schema requestBody;
+    public Schema responseBody;
 
     public Endpoint(String path, String method) {
         this.path = path;
