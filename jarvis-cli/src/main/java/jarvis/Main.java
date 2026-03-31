@@ -24,6 +24,10 @@ public class Main {
         TypeAnalyzer typeAnalyzer = new TypeAnalyzer(apiMetadata.schemas);
         JarScanner scanner = new JarScanner(typeAnalyzer);
 
+        // Пытаемся автоматически найти настройки Base URL в JAR
+        apiMetadata.baseUrl = scanner.extractBaseUrl(targetJarPath);
+        System.out.println("Базовый URL: " + apiMetadata.baseUrl);
+
         apiMetadata.endpoints = scanner.scanAndParse(targetJarPath);
         System.out.println("Найдено эндпоинтов: " + apiMetadata.endpoints.size());
 
